@@ -4132,6 +4132,7 @@ module_param(zfs_checksums_per_second, uint, 0644);
 	MODULE_PARM_DESC(zfs_checksums_per_second, "Rate limit checksum events "
 	"to this many checksum errors per second (do not set below zed"
 	"threshold).");
+
 module_param(zfs_trim_mem_lim_fact, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev, "Maximum percentage of physical memory "
 	"to be used for storing trim extents");
