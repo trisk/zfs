@@ -98,7 +98,6 @@ unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 
-static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
 
@@ -942,6 +941,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 	uint64_t size = BIO_BI_SIZE(bio);
 	int rw = bio_data_dir(bio);
 	zv_request_t *zvr;
+	spa_t *spa = dmu_objset_spa(zv->zv_objset);
 
 	if (bio_has_data(bio) && offset + size > zv->zv_volsize) {
 		printk(KERN_INFO
@@ -1001,13 +1001,13 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
 			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_discard, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			    taskq_dispatch(spa->spa_zvol_io_taskq,
+			    zvol_discard, zvr, TQ_SLEEP) == TASKQID_INVALID)
 				zvol_discard(zvr);
 		} else {
 			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_write, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			    taskq_dispatch(spa->spa_zvol_io_taskq,
+			    zvol_write, zvr, TQ_SLEEP) == TASKQID_INVALID)
 				zvol_write(zvr);
 		}
 	} else {
@@ -1019,7 +1019,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
 		    RL_READER);
-		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+		if (zvol_request_sync || taskq_dispatch(spa->spa_zvol_io_taskq,
 		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
 			zvol_read(zvr);
 	}
@@ -2630,7 +2630,6 @@ zvol_rename_minors(spa_t *spa, const char *name1, const char *name2,
 int
 zvol_init(void)
 {
-	int threads = MIN(MAX(zvol_threads, 1), 1024);
 	int i, error;
 
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
@@ -2638,19 +2637,11 @@ zvol_init(void)
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	ida_init(&zvol_ida);
 
-	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
-	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
-	if (zvol_taskq == NULL) {
-		printk(KERN_INFO "ZFS: taskq_create() failed\n");
-		error = -ENOMEM;
-		goto out;
-	}
-
 	zvol_htable = kmem_alloc(ZVOL_HT_SIZE * sizeof (struct hlist_head),
 	    KM_SLEEP);
 	if (!zvol_htable) {
 		error = -ENOMEM;
-		goto out_taskq;
+		goto out;
 	}
 	for (i = 0; i < ZVOL_HT_SIZE; i++)
 		INIT_HLIST_HEAD(&zvol_htable[i]);
@@ -2668,8 +2659,6 @@ zvol_init(void)
 
 out_free:
 	kmem_free(zvol_htable, ZVOL_HT_SIZE * sizeof (struct hlist_head));
-out_taskq:
-	taskq_destroy(zvol_taskq);
 out:
 	ida_destroy(&zvol_ida);
 	mutex_destroy(&zvol_state_lock);
@@ -2687,7 +2676,6 @@ zvol_fini(void)
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	kmem_free(zvol_htable, ZVOL_HT_SIZE * sizeof (struct hlist_head));
 
-	taskq_destroy(zvol_taskq);
 	list_destroy(&zvol_state_list);
 	mutex_destroy(&zvol_state_lock);
 
