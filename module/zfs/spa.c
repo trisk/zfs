@@ -171,6 +171,8 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
+extern unsigned int zvol_threads;		/* defined in zvol.c */
+
 /*
  * This (illegal) pool name is used when temporarily importing a spa_t in order
  * to get the vdev stats associated with the imported devices.
@@ -1109,6 +1111,8 @@ spa_thread(void *arg)
 static void
 spa_activate(spa_t *spa, int mode)
 {
+	int threads = MIN(MAX(zvol_threads, 1), 1024);
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
@@ -1170,6 +1174,12 @@ spa_activate(spa_t *spa, int mode)
 	    offsetof(spa_error_entry_t, se_avl));
 
 	/*
+	 * This taskq handles zvol requests for each pool and prevents layered
+	 * zvols from exhausting available threads.
+	 */
+	spa->spa_zvol_io_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
+	    threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	/*
 	 * This taskq is used to perform zvol-minor-related tasks
 	 * asynchronously. This has several advantages, including easy
 	 * resolution of various deadlocks (zfsonlinux bug #3681).
@@ -1186,7 +1196,6 @@ spa_activate(spa_t *spa, int mode)
 	 */
 	spa->spa_zvol_taskq = taskq_create("z_zvol", 1, defclsyspri,
 	    1, INT_MAX, 0);
-
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
 	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING.
@@ -1214,6 +1223,11 @@ spa_deactivate(spa_t *spa)
 	if (spa->spa_zvol_taskq) {
 		taskq_destroy(spa->spa_zvol_taskq);
 		spa->spa_zvol_taskq = NULL;
+	}
+
+	if (spa->spa_zvol_io_taskq) {
+		taskq_destroy(spa->spa_zvol_io_taskq);
+		spa->spa_zvol_io_taskq = NULL;
 	}
 
 	if (spa->spa_upgrade_taskq) {

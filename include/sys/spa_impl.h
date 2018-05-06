@@ -315,6 +315,8 @@ struct spa {
 	refcount_t	spa_refcount;		/* number of opens */
 
 	taskq_t		*spa_upgrade_taskq;	/* taskq for upgrade jobs */
+
+	taskq_t		*spa_zvol_io_taskq;	/* taskq for zvol requests */
 };
 
 extern char *spa_config_path;
