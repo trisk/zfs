@@ -168,6 +168,8 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
+extern unsigned int zvol_threads;		/* defined in zvol.c */
+
 /*
  * Report any spa_load_verify errors found, but do not fail spa_load.
  * This is used by zdb to analyze non-idle pools.
@@ -1160,6 +1162,8 @@ spa_thread(void *arg)
 static void
 spa_activate(spa_t *spa, int mode)
 {
+	int threads = MIN(MAX(zvol_threads, 1), 1024);
+
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
@@ -1226,6 +1230,12 @@ spa_activate(spa_t *spa, int mode)
 	spa_keystore_init(&spa->spa_keystore);
 
 	/*
+	 * This taskq handles zvol requests for each pool and prevents layered
+	 * zvols from exhausting available threads.
+	 */
+	spa->spa_zvol_io_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
+	    threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	/*
 	 * This taskq is used to perform zvol-minor-related tasks
 	 * asynchronously. This has several advantages, including easy
 	 * resolution of various deadlocks (zfsonlinux bug #3681).
@@ -1242,7 +1252,6 @@ spa_activate(spa_t *spa, int mode)
 	 */
 	spa->spa_zvol_taskq = taskq_create("z_zvol", 1, defclsyspri,
 	    1, INT_MAX, 0);
-
 	/*
 	 * Taskq dedicated to prefetcher threads: this is used to prevent the
 	 * pool traverse code from monopolizing the global (and limited)
@@ -1276,6 +1285,11 @@ spa_deactivate(spa_t *spa)
 	if (spa->spa_zvol_taskq) {
 		taskq_destroy(spa->spa_zvol_taskq);
 		spa->spa_zvol_taskq = NULL;
+	}
+
+	if (spa->spa_zvol_io_taskq) {
+		taskq_destroy(spa->spa_zvol_io_taskq);
+		spa->spa_zvol_io_taskq = NULL;
 	}
 
 	if (spa->spa_prefetch_taskq) {
