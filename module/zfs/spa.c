@@ -171,7 +171,7 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
-extern unsigned int zvol_threads;		/* defined in zvol.c */
+unsigned int	zvol_threads = 32;		/* async zvol I/Os per pool */
 
 /*
  * This (illegal) pool name is used when temporarily importing a spa_t in order
@@ -1174,8 +1174,8 @@ spa_activate(spa_t *spa, int mode)
 	    offsetof(spa_error_entry_t, se_avl));
 
 	/*
-	 * This taskq handles zvol requests for each pool and prevents layered
-	 * zvols from exhausting available threads.
+	 * This taskq handles I/O requests for zvols in each pool and prevents
+	 * layered zvols from exhausting available threads.
 	 */
 	spa->spa_zvol_io_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
 	    threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
