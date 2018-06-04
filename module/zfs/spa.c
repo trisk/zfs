@@ -168,7 +168,7 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
-extern unsigned int zvol_threads;		/* defined in zvol.c */
+unsigned int	zvol_threads = 32;		/* async zvol I/Os per pool */
 
 /*
  * Report any spa_load_verify errors found, but do not fail spa_load.
@@ -1230,8 +1230,8 @@ spa_activate(spa_t *spa, int mode)
 	spa_keystore_init(&spa->spa_keystore);
 
 	/*
-	 * This taskq handles zvol requests for each pool and prevents layered
-	 * zvols from exhausting available threads.
+	 * This taskq handles I/O requests for zvols in each pool and prevents
+	 * layered zvols from exhausting available threads.
 	 */
 	spa->spa_zvol_io_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
 	    threads, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);

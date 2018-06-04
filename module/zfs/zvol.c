@@ -92,11 +92,12 @@
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
-unsigned int zvol_threads = 32;
 unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
+
+extern unsigned int zvol_threads;	    /* defined in spa.c */
 
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
