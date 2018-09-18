@@ -243,6 +243,9 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	scn->scn_done_txg = 0;
 	spa_scan_stat_init(spa);
 
+	/* Stop any ongoing TRIMs */
+	spa_man_trim_stop(spa);
+
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		scn->scn_phys.scn_ddt_class_max = zfs_scrub_ddt_class_max;
 
@@ -488,9 +491,6 @@ boolean_t
 dsl_scan_scrubbing(const dsl_pool_t *dp)
 {
 	dsl_scan_t *scn = dp->dp_scan;
-
-	/* Stop any ongoing TRIMs */
-	spa_man_trim_stop(dp->dp_spa);
 
 	if (scn->scn_phys.scn_state == DSS_SCANNING &&
 	    scn->scn_phys.scn_func == POOL_SCAN_SCRUB)
