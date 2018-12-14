@@ -3185,7 +3185,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * Load the DDTs (dedup tables).
 	 */
 	error = ddt_load(spa);
-	if (error != 0)
+	if (error != 0 && spa_writeable(spa))
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	spa_update_dspace(spa);
@@ -3200,10 +3200,11 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	if (type != SPA_IMPORT_ASSEMBLE) {
 		nvlist_t *nvconfig;
 
-		if (load_nvlist(spa, spa->spa_config_object, &nvconfig) != 0)
+		if (load_nvlist(spa, spa->spa_config_object, &nvconfig) != 0 &&
+		    spa_writeable(spa))
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
-		if (!spa_config_valid(spa, nvconfig)) {
+		if (spa_writeable(spa) && !spa_config_valid(spa, nvconfig)) {
 			nvlist_free(nvconfig);
 			return (spa_vdev_err(rvd, VDEV_AUX_BAD_GUID_SUM,
 			    ENXIO));
@@ -3239,7 +3240,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * We've successfully opened the pool, verify that we're ready
 	 * to start pushing transactions.
 	 */
-	if (state != SPA_LOAD_TRYIMPORT) {
+	if (spa_writeable(spa) && state != SPA_LOAD_TRYIMPORT) {
 		if ((error = spa_load_verify(spa)))
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA,
 			    error));
