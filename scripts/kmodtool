@@ -165,10 +165,6 @@ EOF
 	# second part
 	if [[ ! "${customkernel}" ]]; then
 	     cat <<EOF
-Requires:         kernel-uname-r = ${kernel_uname_r}
-BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
-%{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
-%{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %post          -n kmod-${kmodname}-${kernel_uname_r}
 ${prefix}/sbin/depmod -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
@@ -279,10 +275,6 @@ EOF
 	# second part
 	if [[ ! "${customkernel}" ]]; then
 		cat <<EOF
-Requires:         kernel-devel-uname-r = ${kernel_uname_r}
-BuildRequires:    kernel-devel-uname-r = ${kernel_uname_r}
-%{?KmodsDevelRequires:Requires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
-%{?KmodsDevelRequires:BuildRequires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
 EOF
 	fi
 
